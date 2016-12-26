@@ -16,10 +16,10 @@ isTxtToImg = 1;
 #########################
 ### From txt to image ###
 #########################
-# Takes "input.txt" and shows the image representation
+# Takes “input.txt" and shows the image representation
 # of the 2D array
 if isTxtToImg:
-	data = np.loadtxt("input.txt")
+	data = np.loadtxt("output.txt")
 	svimg = Image.fromarray(data.astype('uint8'))
 	svimg.show()
 else:
