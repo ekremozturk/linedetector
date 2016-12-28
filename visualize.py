@@ -19,7 +19,7 @@ isTxtToImg = 1;
 # Takes “input.txt" and shows the image representation
 # of the 2D array
 if isTxtToImg:
-	data = np.loadtxt("output.txt")
+	data = np.loadtxt("output40p_25.txt")
 	svimg = Image.fromarray(data.astype('uint8'))
 	svimg.show()
 else:
@@ -30,7 +30,7 @@ else:
 	# .txt output
 	img = Image.open("photo.jpg")  # open colour image
 	img = img.convert('L')  # convert image to grayscale
-	file = open("OutFileName.txt", "w")
+	file = open("input2.txt", "w")
 	txt = list(np.asarray(img))
 	for i in txt:
 		for j in i:

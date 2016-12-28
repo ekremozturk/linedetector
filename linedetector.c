@@ -1,34 +1,48 @@
+/* Student Name: Ekrem Ozturk
+ * Student Number: 2012400006
+ * Compile Status: Compiling
+ * Program Status: Working
+ */
+
 #include <stdio.h>
 #include "mpi.h"
 
 int main(int argc, char* argv[])
 {
+
 	int rank, size;
 
-   MPI_Init(&argc, &argv);
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-   int thresholdArgument[1];
+   MPI_Init(&argc, &argv);  //initialize MPI
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);  //Rank of each processor initialized from 0 to n-1
+   MPI_Comm_size(MPI_COMM_WORLD, &size);  //Total number of processors initialized
+
+   int thresholdArgument[1];  //
+
    sscanf(argv[3], "%d", &thresholdArgument[0]) ;
 
-   int transNumber = 0;
-   int transSize = 200/(size-1);
-   int threshold = thresholdArgument[0];
+   int transNumber = 0;  //Variable used to pass values in mpi_send and mpi_receive functions
 
-   if(rank == 0){
+   int transSize = 200/(size-1);  //Transferred array size: 200 / (# of servant processors)
+
+   int threshold = thresholdArgument[0];  //Threshold variable
+
+   if(rank == 0){ //Master processor
+
    	FILE *File= fopen(argv[1], "r");
-		int input[200][200];
-      int output[196][196];
+		int input[200][200];  //input 2D array
+      int output[196][196];  //output 2D array
+
+      //reads the input file and inserts into array
 		for(int row=0; row<200; row++){
    		for( int col=0; col<200; col++){
    			int s[1];
     			fscanf(File, "%d" ,&s[0]);
-    		//printf("%d ", s[0]);
     			input[row][col]= s[0];
   			}
    	}
 
+      //Divides the input into equal parts and sends them to servants
    	for(int proc = 1; proc < size; proc++){
 			for(int row = 0; row <transSize; row++){
 				for(int column = 0; column < 200; column++){
@@ -39,6 +53,7 @@ int main(int argc, char* argv[])
 			}
 		}
 
+      //Receives output and inserts into output array
       for(int proc = 1; proc<size; proc++){
          if(proc == 1){
             for(int row = 0; row <transSize-2; row++){
@@ -65,7 +80,10 @@ int main(int argc, char* argv[])
          }
       }
 
+
       FILE *outputFile = fopen(argv[2], "w");
+
+      //Writes output into output file
       for(int row=0; row<196; row++){
          for( int col=0; col<196; col++){
             int outputNumber = output[row][col];
@@ -77,12 +95,14 @@ int main(int argc, char* argv[])
 
    }
 
-   for(int proc = 1; proc < size; proc++){
+   for(int proc = 1; proc < size; proc++){  //Servant processors
    	if(rank == proc){
-   		if(rank == 1){
 
-   			int transInput[transSize+1][200];
+   		if(rank == 1){ //processor 2
+
+   			int transInput[transSize+1][200];  //input array for this processor
    			
+            //receive input from master
    			for(int row = 0; row <transSize; row++){
 					for(int column = 0; column < 200; column++){
 						MPI_Recv(&transNumber, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -91,6 +111,7 @@ int main(int argc, char* argv[])
 					}
 				}
 
+            //Send and receive border line
 				for(int column = 0; column < 200; column++){
 
                int transNumber = transInput[transSize-1][column];
@@ -99,11 +120,12 @@ int main(int argc, char* argv[])
 
    			}
 
-            //smoothing
+            //SMOOTHING
 
             int smoothedInput[transSize][198];
-            int smoothedNumber = 0;
+            int smoothedNumber = 0;  //Variable for produced number after taking mean
 
+            //Takes mean of 3x3 matrix and inserts into smoothedInput array
             for(int row = 1; row < transSize; row ++){
                for(int column = 1; column < 199; column++){
                   for(int i = -1; i < 2; i++){
@@ -117,23 +139,30 @@ int main(int argc, char* argv[])
                }
             }
 
+            //Send and receive border line
             for(int column = 0; column < 198; column++){
 
                int smoothedNumber = smoothedInput[transSize-2][column];
+               //printf("1. sayı : %d\n", smoothedNumber);
                MPI_Sendrecv(&smoothedNumber, 1, MPI_INT, proc+1, 0, &smoothedNumber, 1, MPI_INT, proc+1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+               //printf("2. sayı : %d\n", smoothedNumber);
                smoothedInput[transSize-1][column] = smoothedNumber;
 
             }
 
 
             int thresholdedMatrix[transSize-2][196];
+
+            //Variables for produced numbers after multiplications
             int horizontalLine = 0;
             int verticalLine = 0;
             int obliquePlus45 = 0;
             int obliqueMinus45 = 0;
-            int isLine = 0;
+
+            int isLine = 0;  // if it is greater than zero, one of above values has passed the threshold
 
 
+            //Multiplies 3x3 matrix and inserts 0 or 255 into thresholdedMatrix array
             for(int row = 1; row < transSize-1; row++){
                for(int column = 1; column<197; column++){
                   horizontalLine = 
@@ -203,6 +232,7 @@ int main(int argc, char* argv[])
                }
             }
 
+            //Sends processed input back to master
             for(int row = 0; row <transSize-2; row++){
                for(int column = 0; column<196; column++){
                   int transNumber = thresholdedMatrix[row][column];
@@ -210,9 +240,10 @@ int main(int argc, char* argv[])
                }
             }
 
-   		} else if(rank == size-1){
-   			int transInput[transSize+1][200];
-
+   		} else if(rank == size-1){  //processor n
+   			int transInput[transSize+1][200];//input array for this processor
+            
+            //receive input from master
    			for(int row = 1; row <transSize+1; row++){
 					for(int column = 0; column < 200; column++){
 						MPI_Recv(&transNumber, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -221,6 +252,7 @@ int main(int argc, char* argv[])
 					}
 				}
 
+            //Send and receive border line
 				for(int column = 0; column < 200; column++){
 
                int transNumber = transInput[1][column];
@@ -229,11 +261,12 @@ int main(int argc, char* argv[])
 
    			}
 
-            //smoothing
+            //SMOOTHING
 
             int smoothedInput[transSize][198];
-            int smoothedNumber = 0;
+            int smoothedNumber = 0; //Variable for produced number after taking mean
 
+            //Takes mean of 3x3 matrix and inserts into smoothedInput array
             for(int row = 1; row < transSize; row ++){
                for(int column = 1; column < 199; column++){
                   for(int i = -1; i < 2; i++){
@@ -248,6 +281,7 @@ int main(int argc, char* argv[])
                }
             }
 
+            //Send and receive border line
             for(int column = 0; column < 198; column++){
 
                int smoothedNumber = smoothedInput[1][column];
@@ -257,14 +291,19 @@ int main(int argc, char* argv[])
             }
 
 
+
+
             int thresholdedMatrix[transSize-2][196];
+
+            //Variables for produced numbers after multiplications
             int horizontalLine = 0;
             int verticalLine = 0;
             int obliquePlus45 = 0;
             int obliqueMinus45 = 0;
-            int isLine = 0;
 
+            int isLine = 0; // if it is greater than zero, one of above values has passed the threshold
 
+            //Multiplies 3x3 matrix and inserts 0 or 255 into thresholdedMatrix array
             for(int row = 1; row < transSize-1; row++){
                for(int column = 1; column<197; column++){
                   horizontalLine = 
@@ -343,10 +382,11 @@ int main(int argc, char* argv[])
                }
             }
 				
-   		} else {
+   		} else { //between processor 2 and n-1
 
-   			int transInput[transSize+2][200];
-
+   			int transInput[transSize+2][200];//input array for this processor
+            
+            //receive input from master
    			for(int row = 1; row <transSize+1; row++){
 					for(int column = 0; column < 200; column++){
 						MPI_Recv(&transNumber, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -354,6 +394,7 @@ int main(int argc, char* argv[])
 					}
 				}
 
+            //Send and receive border line
 				for(int column = 0; column < 200; column++){
 
                transNumber = transInput[1][column];
@@ -366,11 +407,13 @@ int main(int argc, char* argv[])
                
    			}
 
-            //smoothing
+
+            //SMOOTHING
 
             int smoothedInput[transSize+2][198];
-            int smoothedNumber = 0;
+            int smoothedNumber = 0; //Variable for produced number after taking mean
 
+            //Takes mean of 3x3 matrix and inserts into smoothedInput array
             for(int row = 1; row < transSize+1; row ++){
                for(int column = 1; column < 199; column++){
                   for(int i = -1; i < 2; i++){
@@ -384,6 +427,7 @@ int main(int argc, char* argv[])
                }
             }
 
+            //Send and receive border line
             for(int column = 0; column < 198; column++){
 
                int smoothedNumber = smoothedInput[transSize][column];
@@ -395,15 +439,19 @@ int main(int argc, char* argv[])
                smoothedInput[0][column] = smoothedNumber;
 
             }
+            
 
             int thresholdedMatrix[transSize][196];
+
+            //Variables for produced numbers after multiplications
             int horizontalLine = 0;
             int verticalLine = 0;
             int obliquePlus45 = 0;
             int obliqueMinus45 = 0;
-            int isLine = 0;
 
+            int isLine = 0; // if it is greater than zero, one of above values has passed the threshold
 
+            //Multiplies 3x3 matrix and inserts 0 or 255 into thresholdedMatrix array
             for(int row = 1; row < transSize+1; row++){
                for(int column = 1; column<197; column++){
                   horizontalLine = 
@@ -473,7 +521,7 @@ int main(int argc, char* argv[])
                }
             }
 
-            //send to master
+            //send processed input to master
 
             for(int row = 0; row <transSize; row++){
                for(int column = 0; column<196; column++){
@@ -487,9 +535,8 @@ int main(int argc, char* argv[])
    	}
    }
 
-   //printf("Hello, world, I am %d of %d\n", rank, size);
    MPI_Barrier(MPI_COMM_WORLD);
-   MPI_Finalize();
+   MPI_Finalize(); //MPI endsr
 
    return 0;
 }
